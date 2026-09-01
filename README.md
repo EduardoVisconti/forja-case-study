@@ -84,9 +84,12 @@ Sign in with Apple, and account deletion in-app.
 
 ---
 
-<!-- Screenshots go here. Add 3-4 PNGs (session runner, progress calendar, habits, PR chart)
-     to an images/ folder and reference them below. This is the highest-value addition to
-     this page — recruiters look at pictures before they read. -->
+## The app
+
+| Guided session | Session summary | Progress | Habits |
+|---|---|---|---|
+| <img src="images/01-session-runner.jpg" width="195"> | <img src="images/02-workout-summary.jpg" width="195"> | <img src="images/03-progress.jpg" width="195"> | <img src="images/04-habits.jpg" width="195"> |
+| Exercise, set, rest timer, next — with personal records detected mid-session | Volume, duration, sets and records the moment the session ends | Monthly calendar, cardio trends, and time in heart-rate zones | Daily protocol with streaks — logging a workout checks off "exercise" on its own |
 
 ## Decisions on record
 
