@@ -1,16 +1,27 @@
-# Forja — case study
+# Forja: case study
 
-**Offline-first hybrid-training app.** Guided strength sessions, cardio logging, a daily
-habit protocol, and progress history — in one app that stays fully usable with no connection.
+**Offline-first training app** for people who take training seriously and mix lifting, HYROX,
+functional work and running. Workouts, cardio, programs, habits, body weight and progress live
+in one app that works with no connection.
 
-**Try it:** [app.forjahybrid.com](https://app.forjahybrid.com) · **Site:** [forjahybrid.com](https://forjahybrid.com) · **iOS:** TestFlight (closed beta)
+**Try it:** [app.forjahybrid.com](https://app.forjahybrid.com) · **Site:** [forjahybrid.com](https://forjahybrid.com) · **iOS:** [open TestFlight beta](https://testflight.apple.com/join/bRREz5sS)
 
-> This repository is a write-up. It contains **no product source code** — Forja is a
+> This repository is a write-up. It contains **no product source code**: Forja is a
 > commercial product under a proprietary license. What follows is the engineering
 > reasoning behind it.
 
-**Role:** sole engineer — architecture, implementation, CI, release.
-**Stack:** React Native (Expo SDK 54) · React 19 · TypeScript 5.9 strict · Zustand · Supabase (Auth + Postgres + RLS)
+**Role:** built solo since March 2026, from architecture and design to CI and release.
+**Stack:** React Native (Expo SDK 54) · React 19 · TypeScript strict · Zustand · Supabase (Auth + Postgres + RLS)
+
+---
+
+## Why it exists
+
+I tested the popular training apps and none of them covered all of it, so I built Forja from
+what each one did best. Strength, HYROX, functional work and cardio sit next to progress,
+habits, body weight and measurements. The whole workout fits on one screen, like a
+spreadsheet: tap a set to update weight, reps or time, and correct each station's split after
+a HYROX workout.
 
 ---
 
@@ -31,33 +42,32 @@ out of that one.
 
 Last-write-wins on updates is easy. The trap is deletion: if a delete is modeled as "row is
 gone", any peer that still has the row will helpfully sync it back on the next round, and the
-record resurrects. The user deletes a workout, closes the app, reopens it — and it is there again.
+record resurrects. The user deletes a workout, closes the app, reopens it, and it is there again.
 
 Forja stores deletions as **tombstones**, and runs them through the *same* last-write-wins rule
 as any other write, compared on `updatedAt`. A delete is not the absence of a record; it is a
 record that says "deleted, at this time". Resurrection stops being possible by construction
-rather than by patch.
+rather than by patch. The rule is enforced from the client merge down to a Postgres trigger,
+and property-based tests simulate two devices with skewed clocks.
 
 ### 2. A test suite that runs in UTC cannot see date bugs
 
 A habit tracker lives on the concept of "today". "Today" is a local-timezone question, and the
-CI machine runs in UTC — where local day and UTC day are the same day, so **no test can tell
+CI machine runs in UTC, where local day and UTC day are the same day, so **no test can tell
 the two apart**. Every off-by-one-day bug passes CI and ships.
 
-The suite therefore has a guard that runs the date-sensitive tests under `TZ=Asia/Tokyo`, far
-enough from UTC that any test conflating the two fails immediately. It runs on every push,
-alongside the main suite.
+The suite therefore has a guard that reruns the day-boundary tests outside UTC: under
+`Asia/Tokyo`, where the local day and the UTC day differ, and under `America/New_York` for the
+daylight-saving turns. Code that swaps a local date for a UTC one fails there instead of
+shipping. It runs on every push, alongside the main suite.
 
-### 3. Architecture that erodes silently unless something stops it
+### 3. A rule that CI enforces instead of a document
 
-The codebase is organized by feature, with strict layers: `service → hook → component → screen`.
-Services never import React; screens never hold business logic.
-
-Written down, that rule decays within a month. So it is **enforced**: an automated gate fails
-the pull request when a layer boundary is crossed, alongside checks for oversized files,
-function-level debt, and orphaned modules. Nine stages run on a pre-push hook before anything
-reaches the remote — the same ones CI runs, in the same order, so the feedback arrives before
-the push rather than after.
+Screens and components may not import services or the database client directly. Written
+down, that rule decays within a month. So it is **enforced**: a CI gate blocks the pull
+request that breaks it. The same idea runs through the rest of the repository, where custom
+lint rules and audit scripts, themselves covered by tests, check what a reviewer would
+otherwise have to remember.
 
 ---
 
@@ -65,8 +75,8 @@ the push rather than after.
 
 Every table carries row-level security with **both** `USING` and `WITH CHECK` scoped to the
 authenticated user. `USING` alone is the common mistake: it filters what a user can read, and
-leaves them able to *write* rows attributed to someone else. Authorization is verified by a
-two-user test that asserts each side cannot reach the other's data, run before every release.
+leaves them able to *write* rows attributed to someone else. Server-side tests check that one
+user cannot reach another's data.
 
 Only the anonymous key ever reaches the client. Build and deploy secrets exist solely in CI.
 
@@ -74,29 +84,41 @@ Only the anonymous key ever reaches the client. Build and deploy secrets exist s
 
 ## What is in the product
 
-Strength templates with sets, reps, load, rest and per-exercise notes, run as a guided session
-(exercise → set → rest timer → next), reorderable mid-workout. Cardio plans and logs for running,
-cycling, swimming and brick, by workout type and intensity, with HR zones and RPE. Customizable
-daily habits with streaks — where logging a workout checks off "exercise" on its own. A monthly
-progress calendar, personal records by estimated 1RM (Epley) and top load, volume by muscle group,
-and estimated recovery. Body measurements, 43 achievements, CSV import/export, reminders,
-Sign in with Apple, and account deletion in-app.
+- **Block-based workouts:** sets, rounds for time, AMRAP, EMOM and intervals, with each block's
+  clock running during the session.
+- **The whole workout on one screen,** like a spreadsheet. Tap a set to update weight, reps or
+  time, and correct each station's split after a HYROX workout.
+- **1,256 exercises, 73 ready workouts** (36 of them built around the 8 HYROX stations),
+  **6 multi-week programs and 5 run plans.**
+- **Cardio** for running, cycling, swimming and brick sessions, logged in km or miles.
+- **Progress:** personal records, estimated 1RM, volume by muscle group, a recovery map and
+  habit streaks.
+- Daily habits, body weight and 13 body metrics, achievements, CSV import and export,
+  Sign in with Apple, and account deletion in the app.
+- **5,000+ tests.**
+
+## Where it is
+
+Open beta on TestFlight, plus the web app. A full redesign is in progress, with more cardio,
+HYROX and functional plans and strength training built for each user.
 
 ---
 
 ## The app
 
+Screens from before the 2026 redesign.
+
 | Guided session | Session summary | Progress | Habits |
 |---|---|---|---|
 | <img src="images/01-session-runner.jpg" width="195"> | <img src="images/02-workout-summary.jpg" width="195"> | <img src="images/03-progress.jpg" width="195"> | <img src="images/04-habits.jpg" width="195"> |
-| Exercise, set, rest timer, next — with personal records detected mid-session | Volume, duration, sets and records the moment the session ends | Monthly calendar, cardio trends, and time in heart-rate zones | Daily protocol with streaks — logging a workout checks off "exercise" on its own |
+| Exercise, set, rest timer, next, with personal records detected mid-session | Volume, duration, sets and records the moment the session ends | Monthly calendar, cardio trends, and time in heart-rate zones | Daily protocol with streaks: logging a workout checks off "exercise" on its own |
 
 ## Decisions on record
 
-Architecture decisions are recorded as ADRs in the private repository — framework choice,
-offline strategy, backend, state management, UI library, navigation, i18n, and the tombstone
-LWW rule that resolved problem 1 above.
+Architecture decisions are recorded as ADRs in the private repository: framework choice,
+offline strategy, backend, state management, UI library, navigation, i18n, the tombstone
+LWW rule that resolved problem 1 above, and the block-based workout model.
 
 ---
 
-*Questions about any of this are welcome — [LinkedIn](https://www.linkedin.com/in/eduardo-visconti/).*
+*Questions about any of this are welcome: [LinkedIn](https://www.linkedin.com/in/eduardo-visconti/).*
